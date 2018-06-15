@@ -1,7 +1,7 @@
 #########################################################################################################################
 #Description: Downlaod Openvas v9 source codes with dependancy codes. Compile install Openvas v9 on RHEL 7.5.           #
 #Features: Complete isolated source code installation. Target directory can be specified. Example - /mnt/scans/openvas  #
-#Supported OS: RHEL 7.5 or higher                                                                                       #
+#Supported OS: RHEL 7.5 (not tested other versions)                                                                                      #
 #Written by: TMSundaram                                                                                                 #
 #Date: 20180612                                                                                                         #
 #########################################################################################################################
@@ -22,10 +22,8 @@ status_check() {
 	fi
 }
 
-check_failure() {
-	if [ $? -ne "0" ]; then
-		return 1
-	fi
+new_line() {
+	echo -e "\n----------------------------------------------------------------\n" >> $BUILD_LOG 2>&1
 }
 
 add_repo() {
@@ -146,11 +144,18 @@ install_dep_libs() {
 				mkdir build >> $BUILD_LOG 2>&1
 				cd build >> $BUILD_LOG 2>&1
 				../configure --prefix=${OPENVAS_HOME} >> $BUILD_LOG 2>&1
-				check_failure
+				if [ "$?" -ne "0" ]; then
+					return 1
+				fi
 				make >> $BUILD_LOG 2>&1
-				check_failure
+				if [ "$?" -ne "0" ]; then
+					return 1
+				fi
 				make install >> $BUILD_LOG 2>&1
-				check_failure
+				if [ "$?" -ne "0" ]; then
+					return 1
+				fi
+				new_line
 				cd ${OPENVAS_DOWNLOAD_DIR}
 		else
 				false
@@ -158,7 +163,11 @@ install_dep_libs() {
 		fi
 	done
 	LIB_NAME="first set of libs"
-	ln -s ${OPENVAS_HOME}/include ${OPENVAS_HOME}/include/heimdal
+	if [ ! -L "${OPENVAS_HOME}/include/heimdal" ]; then
+		ln -s ${OPENVAS_HOME}/include ${OPENVAS_HOME}/include/heimdal >> $BUILD_LOG 2>&1
+	else
+		return 0
+	fi
 }
 
 get_cmakev3() {
@@ -181,14 +190,20 @@ install_openvas() {
 				mkdir build
 				cd build
 				$CMAKECMD -DCMAKE_INSTALL_PREFIX=${OPENVAS_HOME} -DCMAKE_INSTALL_RPATH=${OPENVAS_HOME}/lib .. >> $BUILD_LOG 2>&1
-				check_failure
+				if [ "$?" -ne "0" ]; then
+					return 1
+				fi
 				make  >> $BUILD_LOG 2>&1
-				check_failure
+				if [ "$?" -ne "0" ]; then
+					return 1
+				fi
 				make install >> $BUILD_LOG 2>&1
-				check_failure
+				if [ "$?" -ne "0" ]; then
+					return 1
+				fi
 				make rebuild_cache >> $BUILD_LOG 2>&1
-				check_failure
 				ldconfig
+				new_line
 				cd ${OPENVAS_DOWNLOAD_DIR}
 		else
 				false
@@ -200,10 +215,14 @@ install_openvas() {
 
 install_nmap() {
 	cd ${OPENVAS_DOWNLOAD_DIR}/nmap-7.70
-	./configure --prefix=/mnt/SecScans/openvas --with-libpcap=/mnt/SecScans/openvas >> $BUILD_LOG 2>&1
-	check_failure
+	./configure --prefix=${OPENVAS_HOME} --with-libpcap=${OPENVAS_HOME} >> $BUILD_LOG 2>&1
+	if [ "$?" -ne "0" ]; then
+		return 1
+	fi
 	make >> $BUILD_LOG 2>&1
-	check_failure
+	if [ "$?" -ne "0" ]; then
+		return 1
+	fi
 	make install >> $BUILD_LOG 2>&1
 }
 
@@ -240,39 +259,55 @@ start-openvas-services() {
 			X=1
 		fi
 	done
-	openvasmd --rebuild --progress
-	openvasmd -a 127.0.0.1 -p 9390
+	ps -C openvassd > /dev/null 2>&1
+ 	if [ "$?" -eq "0" ]; then
+ 		echo "success: Openvas scanner service started"
+ 		openvasmd --rebuild --progress
+		openvasmd -a 127.0.0.1 -p 9390
+		ps -C openvasmd > /dev/null 2>&1
+	  	 	if [ "$?" == "0" ]; then
+	  	 		echo "success: Openvas manager service started"
+	  	 	else
+	  	 		echo -e "failed: done with Openvas installation, but could not start openvas manager service.\nNo need to rerun the script.\n \
+Check Openvas manager service log file ${OPENVAS_HOME}/var/log/openvas/openvasmd.log" | tee -a ${BUILD_LOG}
+	  	 		exit 1
+	  	 	fi
+	else
+		echo -e "failed: done with Openvas installation, but could not start openvas scanner service.\nNo need to rerun the script.\n \
+Check Openvas scanner service log file ${OPENVAS_HOME}/var/log/openvas/openvassd.messages" | tee -a ${BUILD_LOG}
+		exit 1
+	fi
 }
 
-openvas_service_status() {
-	ps -C openvassd
-	  if [ "$?" == "0" ]; then
-	  	 echo "OPenvas scanner running"
-	  	 ps -C openvasmd
-	  	 if [ "$?" == "0" ]; then
-	  	 	echo "OPenvas manager service running"
-	  	 else
-	  	 	echo "failed to start openvas-manager"
-	  	 	exit 1
-	  	 fi
-	  else
-	  	 echo "failed to start OPenvas scanner"
-	  	 exit 1
-	  fi
-}
+#openvas_service_status() {
+#	ps -C openvassd
+#	  if [ "$?" == "0" ]; then
+#	  	 echo "OPenvas scanner running"
+#	  	 ps -C openvasmd
+#	  	 if [ "$?" == "0" ]; then
+#	  	 	echo "OPenvas manager service running"
+#	  	 else
+#	  	 	echo "failed to start openvas-manager"
+#	  	 	exit 1
+#	  	 fi
+#	  else
+#	  	 echo "failed to start OPenvas scanner"
+#	  	 exit 1
+#	  fi
+#}
 
 install_pdf_report_deps() {
 	if [ -d "${OPENVAS_DOWNLOAD_DIR}/titlesec" ]; then
 		cd ${OPENVAS_DOWNLOAD_DIR}/titlesec
 		mkdir -p /usr/share/texlive/texmf-local/tex/latex/titlesec
-		cp *.{sty,tss,def} /usr/share/texlive/texmf-local/tex/latex/titlesec/
+		cp *.{sty,tss,def} /usr/share/texlive/texmf-local/tex/latex/titlesec/ && texhash >> $BUILD_LOG 2>&1
 		if [ "$?" -eq "0" ]; then
 			true && status_check "texlive dependancy titlesec install"
 			if [ -d "${OPENVAS_DOWNLOAD_DIR}/changepage" ]; then
 				cd ${OPENVAS_DOWNLOAD_DIR}/changepage
 				latex changepage.ins >> $BUILD_LOG 2>&1
 				mkdir -p /usr/share/texlive/texmf-local/tex/latex/chngpage/
-				cp *.sty /usr/share/texlive/texmf-local/tex/latex/chngpage/
+				cp *.sty /usr/share/texlive/texmf-local/tex/latex/chngpage/ && texhash >> $BUILD_LOG 2>&1
 				status_check "texlive dependancy changepage install"
 			else
 				false
@@ -289,19 +324,15 @@ install_pdf_report_deps() {
 }
 
 main() {
-	export LC_ALL=en_US.UTF-8
-	export OPENVAS_DOWNLOAD_DIR=/mnt/SecScans/Downloads/Openvas
-	export OPENVAS_HOME=/mnt/SecScans/openvas
 	if [ -d ${OPENVAS_DOWNLOAD_DIR} ]; then
 		rm -rf ${OPENVAS_DOWNLOAD_DIR}
 	fi
 	mkdir -p ${OPENVAS_HOME} ${OPENVAS_DOWNLOAD_DIR}/logs
-	export BUILD_LOG=${OPENVAS_DOWNLOAD_DIR}/logs/openvas_build_log
+##	export BUILD_LOG=${OPENVAS_DOWNLOAD_DIR}/logs/openvas_build_log
 
 	###Ready to go, starting
 	echo "Starting with OPenvas v9 Installation - It may take 30mins or even more depends on system performance"
 	install_deps_yum
-#		status_check "Install OS base dependancy through yum."
 	download_extract_codes
 		status_check "download & extract source codes"
 	add_popt.pc >> $BUILD_LOG 2>&1
@@ -329,13 +360,18 @@ main() {
 		status_check "Source install latest nmap"
 	echo "Gettng latest NVT's from feed"
 	openvas_feed_sync >> $BUILD_LOG 2>&1
+	create_omp_conf
 	echo "Starting Openvas services"
 	start-openvas-services >> $BUILD_LOG 2>&1
-	create_omp_conf
-	openvas_service_status
+#	openvas_service_status
 }
 
-echo "********************" | tee -a $BUILD_LOG
+echo -e "\n*************************************************\n" | tee -a $BUILD_LOG
 date | tee -a $BUILD_LOG
+echo  "-------------------------------------------------" | tee -a $BUILD_LOG
+export LC_ALL=en_US.UTF-8
+export OPENVAS_DOWNLOAD_DIR=/mnt/scans/downloads/Openvas
+export OPENVAS_HOME=/mnt/scans/openvas
+export BUILD_LOG=${OPENVAS_DOWNLOAD_DIR}/logs/openvas_build_log
 main
-echo "********************" | tee -a $BUILD_LOG
+echo -e "\n*************************************************\n" | tee -a $BUILD_LOG
