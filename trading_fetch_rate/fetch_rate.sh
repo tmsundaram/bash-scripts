@@ -3,10 +3,11 @@
 ##Purpose: Fetch market price of given material and sent alert ##
 ##Author : TM Sundaram                                         ##
 ##Date   : 2020-05-09                                          ##
-##Version: 1.0.0                                               ##
+##Version: 1.0.1                                               ##
 ##Test   : Tested on Ubuntu 18.04                              ##
 #################################################################
 ##Global variables
+##Test alert functionality
 OK_STATE=0
 FAILED_STATE=1
 DDIR="$HOME/TRADING"
