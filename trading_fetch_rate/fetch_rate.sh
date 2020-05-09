@@ -193,8 +193,8 @@ function post-op() {
 						echo -e "\tDiff(RS): Unknown-Change ${DIFF_PRICE}" >> $OUT_TMP
 					fi
 					[ ! -f $ALERT_FILE ] && notify_logic_latest $SYM $DIFF_PRICE
-					j=$(expr $j + 1)
 				fi
+				j=$(expr $j + 1)
 			done
 			if [ $? -eq $OK_STATE ] && [ -s "$OUT_TMP" ]; then
 				##check and send email
