@@ -3,11 +3,11 @@
 ##Purpose: Fetch market price of given material and sent alert ##
 ##Author : TM Sundaram                                         ##
 ##Date   : 2020-05-09                                          ##
-##Version: 1.0.1                                               ##
+##Version: 1.0.2                                               ##
 ##Test   : Tested on Ubuntu 18.04                              ##
 #################################################################
+
 ##Global variables
-##Test alert functionality
 OK_STATE=0
 FAILED_STATE=1
 DDIR="$HOME/TRADING"
@@ -16,7 +16,7 @@ SDIR=$(cd $CDIR && pwd)
 TEMP="$DDIR/tmp"
 JQ_CMD="$SDIR/jq"
 SYMBOL_DB="$SDIR/symbols.db"
-LOG="$SDIR/logs/script_output.log"
+LOG="$TEMP/logs/script_output.log"
 TIME_ZONE="Asia/Kolkata"
 
 ##User variables
@@ -29,8 +29,8 @@ function log_msg() {
 }
 
 function mk_dirs() {
-	[ ! -d $TEMP ] && mkdir -p $TEMP
-	[ ! -d "$SDIR/logs" ] && mkdir -p $SDIR/logs
+	#[ ! -d $TEMP ] && mkdir -p $TEMP
+	[ ! -d "$TEMP/logs" ] && mkdir -p $TEMP/logs
 }
 
 function send_email() {
@@ -146,7 +146,7 @@ function notify_logic_latest() {
 				touch $ALERT_FILE
 				RET=$OK_STATE
 			else
-				log_msg "$FUNC" "alert condition not met"
+				log_msg "$FUNC" "$SYM - alert condition not met"
 			fi
 			;;
 		*)	RET=$OK_STATE ;;
@@ -179,17 +179,21 @@ function post-op() {
 				RES=$(tail -n-2 $DATA_FILE|head -1)
 				P_TIME=$(echo $RES|awk -F, '{print $1}')
 				P_PRICE=$(echo $RES|awk -F, '{print $4}')
-				echo -e "\nUnit Code: $SYM ($SYM_NAME)\n\t=> Previous: $P_TIME\t$P_PRICE\n\t=> Current: $C_TIME\t$C_PRICE" >> $OUT_TMP
-				##Find difference
-				DIFF_PRICE=$(echo "$C_PRICE - $P_PRICE"|bc -l)
-				if (( $(echo "$DIFF_PRICE > 0"|bc -l) )) ; then
-					echo -e "\tDiff(Rs): Up/Sell +${DIFF_PRICE}" >> $OUT_TMP
-				elif (( $(echo "$DIFF_PRICE < 0"|bc -l) )) ; then
-					echo -e "\tDiff(Rs): Down/Buy ${DIFF_PRICE}" >> $OUT_TMP
+				if (( $(echo "$P_PRICE == $C_PRICE" |bc -l) )); then
+					log_msg "$FUNC" "$SYM ($SYM_NAME) no change in price"
 				else
-					echo -e "\tDiff(RS): No-Change ${DIFF_PRICE}" >> $OUT_TMP
+					echo -e "\nUnit Code: $SYM ($SYM_NAME)\n\t=> Previous: $P_TIME\t$P_PRICE\n\t=> Current: $C_TIME\t$C_PRICE" >> $OUT_TMP
+					##Find difference price##
+					DIFF_PRICE=$(echo "$C_PRICE - $P_PRICE"|bc -l)
+					if (( $(echo "$DIFF_PRICE > 0"|bc -l) )) ; then
+						echo -e "\tDiff(Rs): Up/Sell +${DIFF_PRICE}" >> $OUT_TMP
+					elif (( $(echo "$DIFF_PRICE < 0"|bc -l) )) ; then
+						echo -e "\tDiff(Rs): Down/Buy ${DIFF_PRICE}" >> $OUT_TMP
+					else
+						echo -e "\tDiff(RS): Unknown-Change ${DIFF_PRICE}" >> $OUT_TMP
+					fi
+					[ ! -f $ALERT_FILE ] && notify_logic_latest $SYM $DIFF_PRICE
 				fi
-				[ ! -f $ALERT_FILE ] && notify_logic_latest $SYM $DIFF_PRICE
 				j=$(expr $j + 1)
 			done
 			if [ $? -eq $OK_STATE ] && [ -s "$OUT_TMP" ]; then
@@ -256,8 +260,6 @@ function pre-op() {
 	*) 	log_msg "$FUNC" "Invalid mode selected"
 			;;
  esac
- 
- [ $RET -eq $OK_STATE ] && mk_dirs
 
 return $RET
 }
@@ -327,9 +329,13 @@ log_msg "$FUNC" "ended with exit code $RET"
 
 return $RET
 }
-log_msg "\n---------------------------------------"
+
+##Beginning of script##
+mk_dirs
+
+log_msg "---------------------------------------"
 log_msg "Program: $0" "Started"
-log_msg "\n---------------------------------------"
+log_msg "---------------------------------------"
 main "$@"
 RET=$?
 if [ $RET -eq $OK_STATE ]; then
@@ -337,5 +343,5 @@ if [ $RET -eq $OK_STATE ]; then
 else
 	log_msg "Program: $0" "ended with failure status"
 fi
-log_msg "---------------------------------------"
+log_msg "-----X---------X------------X--------\n\n"
 exit $RET
