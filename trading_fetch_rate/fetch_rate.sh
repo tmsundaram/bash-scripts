@@ -179,12 +179,12 @@ function post-op() {
 				RES=$(tail -n-2 $DATA_FILE|head -1)
 				P_TIME=$(echo $RES|awk -F, '{print $1}')
 				P_PRICE=$(echo $RES|awk -F, '{print $4}')
-				##Find difference
-				DIFF_PRICE=$(echo "$C_PRICE - $P_PRICE"|bc -l)
-				if [ $DIFF_PRICE -eq $OK_STATE ]; then
+				if (( $(echo "$P_PRICE == $C_PRICE" |bc -l) )); then
 					log_msg "$FUNC" "$SYM ($SYM_NAME) no change in price"
 				else
 					echo -e "\nUnit Code: $SYM ($SYM_NAME)\n\t=> Previous: $P_TIME\t$P_PRICE\n\t=> Current: $C_TIME\t$C_PRICE" >> $OUT_TMP
+					##Find difference price##
+					DIFF_PRICE=$(echo "$C_PRICE - $P_PRICE"|bc -l)
 					if (( $(echo "$DIFF_PRICE > 0"|bc -l) )) ; then
 						echo -e "\tDiff(Rs): Up/Sell +${DIFF_PRICE}" >> $OUT_TMP
 					elif (( $(echo "$DIFF_PRICE < 0"|bc -l) )) ; then
