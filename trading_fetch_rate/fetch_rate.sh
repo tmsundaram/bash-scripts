@@ -146,7 +146,7 @@ function notify_logic_latest() {
 				touch $ALERT_FILE
 				RET=$OK_STATE
 			else
-				log_msg "$FUNC" "alert condition not met"
+				log_msg "$FUNC" "$SYM - alert condition not met"
 			fi
 			;;
 		*)	RET=$OK_STATE ;;
@@ -179,18 +179,22 @@ function post-op() {
 				RES=$(tail -n-2 $DATA_FILE|head -1)
 				P_TIME=$(echo $RES|awk -F, '{print $1}')
 				P_PRICE=$(echo $RES|awk -F, '{print $4}')
-				echo -e "\nUnit Code: $SYM ($SYM_NAME)\n\t=> Previous: $P_TIME\t$P_PRICE\n\t=> Current: $C_TIME\t$C_PRICE" >> $OUT_TMP
 				##Find difference
 				DIFF_PRICE=$(echo "$C_PRICE - $P_PRICE"|bc -l)
-				if (( $(echo "$DIFF_PRICE > 0"|bc -l) )) ; then
-					echo -e "\tDiff(Rs): Up/Sell +${DIFF_PRICE}" >> $OUT_TMP
-				elif (( $(echo "$DIFF_PRICE < 0"|bc -l) )) ; then
-					echo -e "\tDiff(Rs): Down/Buy ${DIFF_PRICE}" >> $OUT_TMP
+				if [ $DIFF_PRICE -eq $OK_STATE ]; then
+					log_msg "$FUNC" "$SYM ($SYM_NAME) no change in price"
 				else
-					echo -e "\tDiff(RS): No-Change ${DIFF_PRICE}" >> $OUT_TMP
+					echo -e "\nUnit Code: $SYM ($SYM_NAME)\n\t=> Previous: $P_TIME\t$P_PRICE\n\t=> Current: $C_TIME\t$C_PRICE" >> $OUT_TMP
+					if (( $(echo "$DIFF_PRICE > 0"|bc -l) )) ; then
+						echo -e "\tDiff(Rs): Up/Sell +${DIFF_PRICE}" >> $OUT_TMP
+					elif (( $(echo "$DIFF_PRICE < 0"|bc -l) )) ; then
+						echo -e "\tDiff(Rs): Down/Buy ${DIFF_PRICE}" >> $OUT_TMP
+					else
+						echo -e "\tDiff(RS): Unknown-Change ${DIFF_PRICE}" >> $OUT_TMP
+					fi
+					[ ! -f $ALERT_FILE ] && notify_logic_latest $SYM $DIFF_PRICE
+					j=$(expr $j + 1)
 				fi
-				[ ! -f $ALERT_FILE ] && notify_logic_latest $SYM $DIFF_PRICE
-				j=$(expr $j + 1)
 			done
 			if [ $? -eq $OK_STATE ] && [ -s "$OUT_TMP" ]; then
 				##check and send email
@@ -328,9 +332,10 @@ return $RET
 
 ##Beginning of script##
 mk_dirs
-log_msg "\n---------------------------------------"
+
+log_msg "---------------------------------------"
 log_msg "Program: $0" "Started"
-log_msg "\n---------------------------------------\n"
+log_msg "---------------------------------------"
 main "$@"
 RET=$?
 if [ $RET -eq $OK_STATE ]; then
@@ -338,5 +343,5 @@ if [ $RET -eq $OK_STATE ]; then
 else
 	log_msg "Program: $0" "ended with failure status"
 fi
-log_msg "\n---------------------------------------\n"
+log_msg "-----X---------X------------X--------\n\n"
 exit $RET
