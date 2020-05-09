@@ -6,8 +6,8 @@
 ##Version: 1.0.1                                               ##
 ##Test   : Tested on Ubuntu 18.04                              ##
 #################################################################
+
 ##Global variables
-##Test alert functionality
 OK_STATE=0
 FAILED_STATE=1
 DDIR="$HOME/TRADING"
@@ -16,7 +16,7 @@ SDIR=$(cd $CDIR && pwd)
 TEMP="$DDIR/tmp"
 JQ_CMD="$SDIR/jq"
 SYMBOL_DB="$SDIR/symbols.db"
-LOG="$SDIR/logs/script_output.log"
+LOG="$TEMP/logs/script_output.log"
 TIME_ZONE="Asia/Kolkata"
 
 ##User variables
@@ -29,8 +29,8 @@ function log_msg() {
 }
 
 function mk_dirs() {
-	[ ! -d $TEMP ] && mkdir -p $TEMP
-	[ ! -d "$SDIR/logs" ] && mkdir -p $SDIR/logs
+	#[ ! -d $TEMP ] && mkdir -p $TEMP
+	[ ! -d "$TEMP/logs" ] && mkdir -p $TEMP/logs
 }
 
 function send_email() {
@@ -256,8 +256,6 @@ function pre-op() {
 	*) 	log_msg "$FUNC" "Invalid mode selected"
 			;;
  esac
- 
- [ $RET -eq $OK_STATE ] && mk_dirs
 
 return $RET
 }
@@ -327,9 +325,12 @@ log_msg "$FUNC" "ended with exit code $RET"
 
 return $RET
 }
+
+##Beginning of script##
+mk_dirs
 log_msg "\n---------------------------------------"
 log_msg "Program: $0" "Started"
-log_msg "\n---------------------------------------"
+log_msg "\n---------------------------------------\n"
 main "$@"
 RET=$?
 if [ $RET -eq $OK_STATE ]; then
@@ -337,5 +338,5 @@ if [ $RET -eq $OK_STATE ]; then
 else
 	log_msg "Program: $0" "ended with failure status"
 fi
-log_msg "---------------------------------------"
+log_msg "\n---------------------------------------\n"
 exit $RET
