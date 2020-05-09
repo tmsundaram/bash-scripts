@@ -1,12 +1,19 @@
 #!/bin/bash
-
+#################################################################
+##Purpose: Fetch market price of given material and sent alert ##
+##Author : TM Sundaram                                         ##
+##Date   : 2020-05-09                                          ##
+##Version: 1.0.0                                               ##
+##Test   : Tested on Ubuntu 18.04                              ##
+#################################################################
 ##Global variables
 OK_STATE=0
 FAILED_STATE=1
-WDIR="$HOME/TRADING"
-SDIR="$HOME/scripts"
-TEMP="$WDIR/tmp"
-JQ_CMD="$SDIR/bin/jq"
+DDIR="$HOME/TRADING"
+CDIR=$(dirname $0)
+SDIR=$(cd $CDIR && pwd)
+TEMP="$DDIR/tmp"
+JQ_CMD="$SDIR/jq"
 SYMBOL_DB="$SDIR/symbols.db"
 LOG="$SDIR/logs/script_output.log"
 TIME_ZONE="Asia/Kolkata"
@@ -90,7 +97,7 @@ function parse_data() {
 	local RET=$FAILED_STATE
 	local MODE=$1
 	local OUT_FILE="$TEMP/OUT_${MODE}.txt"
-	[ ! -d $WDIR/$MODE ] && mkdir -p $WDIR/$MODE
+	[ ! -d $DDIR/$MODE ] && mkdir -p $DDIR/$MODE
 	
 	case $MODE in
 		latest) 
@@ -103,7 +110,7 @@ function parse_data() {
 			do
 				##Capture each symbol/code value
 				SYM=${QSYM_ARR[$j]}
-				DATA_FILE="$WDIR/$MODE/data_${MODE}_${SYM}"
+				DATA_FILE="$DDIR/$MODE/data_${MODE}_${SYM}"
 				[ ! -f ${DATA_FILE} ] && touch ${DATA_FILE}
 				SYM_VALUE=$($JQ_CMD ".rates.$SYM" $OUT_FILE)
 				RES="$QTIME,$QBASE,$SYM,$SYM_VALUE" 
@@ -164,7 +171,7 @@ function post-op() {
 			while [ $j -lt $SYM_CNT ]; do
 				SYM=${SYM_ARR[$j]}
 				SYM_NAME=$(grep -w -m1 $SYM $SYMBOL_DB |cut -d" " -f2-)
-				DATA_FILE="$WDIR/$MODE/data_${MODE}_${SYM}"
+				DATA_FILE="$DDIR/$MODE/data_${MODE}_${SYM}"
 				RES=$(tail -n-1 $DATA_FILE)
 				C_TIME=$(echo $RES|awk -F, '{print $1}')
 				C_PRICE=$(echo $RES|awk -F, '{print $4}')
