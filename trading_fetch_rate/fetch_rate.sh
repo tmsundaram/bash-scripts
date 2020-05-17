@@ -93,13 +93,19 @@ function api_call() {
 	local RET=$FAILED_STATE
 	local URL=$1
 	local COUNTER_VALUE=$2
+	local KEY_COUNT=$3
 	local OUT_FILE="$TEMP/OUT_${MODE}.txt"
 	curl --location --request GET --output $OUT_FILE --create-dirs "${URL}"
 	if [ $? -eq $OK_STATE ]; then
 		RES=$($JQ_CMD '.success' $OUT_FILE)
 		if [ $RES == "true" ]; then
 			RET=$OK_STATE
-			echo "$COUNTER_VALUE + 1" |bc -l > $COUNTER_FILE
+			if [ $COUNTER_VALUE	-lt $(echo ($KEY_CNT * $COUNTER_MAX)-1|bc -l) ]; then
+				echo "$COUNTER_VALUE + 1" |bc -l > $COUNTER_FILE
+			else
+				echo "0" > $COUNTER_FILE
+				log_msg "$FUNC" "Max API request reached for $KEY_CNT keys, so reset counter to Zero"
+			fi
 			log_msg "$FUNC" "api request succeeded"
 		else
 			log_msg "$FUNC" "api response data shows failure"
@@ -242,12 +248,12 @@ local ACCESS_KEY=""
 local SYMBOL=$3
 
 ##Retrive access_key
-local LC=$(wc -l $KEY_FILE|awk '{print $1}')
+local KEY_CNT=$(wc -l $KEY_FILE|awk '{print $1}')
 local J=1
 local COUNTER_VALUE=$(cat $COUNTER_FILE)
-while [ $J -le $LC ];
+while [ $J -le $KEY_CNT ];
 do
-if [ $COUNTER_VALUE -le $(echo "$COUNTER_MAX * $J" |bc -l) ]; then
+if [ $COUNTER_VALUE -lt $(echo "$COUNTER_MAX * $J" |bc -l) ]; then
 	ACCESS_KEY=$(sed -n ${J}p $KEY_FILE)
 	RET=$OK_STATE
 	break
@@ -263,7 +269,7 @@ if [ $RET -eq $OK_STATE ]; then
 	 if [ $? -eq $OK_STATE ]; then
 		URL=$RES
 		##Query API endpoint
-		api_call $URL $COUNTER_VALUE
+		api_call $URL $COUNTER_VALUE $KEY_CNT
 		if [ $? -eq $OK_STATE ]; then
 			parse_data $MODE
 			RET=$?
