@@ -59,7 +59,7 @@ return $RET
 function error_notify() {
 local FUNC=error_notify
 local MAIL_DATA="$TEMP/OUT_error.msg"
-tail -10 $LOG > $MAIL_DATA
+tail -12 $LOG > $MAIL_DATA
 send_email "${EMAIL_ERR_SUB}" $MAIL_DATA
 RET=$?
 
@@ -238,7 +238,7 @@ local FUNC=do-op
 local RET=$FAILED_STATE
 local MODE=$1
 local BASE=$2
-local ACCESS_KEY="sfpvqh5gf9lnroohni4pnjef1zhk8h9pk93o6acy99kzwd7b9jq3e6q8g72m"
+local ACCESS_KEY=""
 local SYMBOL=$3
 
 ##Retrive access_key
