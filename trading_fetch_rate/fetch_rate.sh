@@ -18,11 +18,17 @@ JQ_CMD="$SDIR/jq"
 SYMBOL_DB="$SDIR/symbols.db"
 LOG="$TEMP/logs/script_output.log"
 TIME_ZONE="Asia/Kolkata"
+KEY_FILE="$HOME/keys/metals-api.key"
+COUNTER_FILE="$DDIR/tmp/.counter"
+COUNTER_MAX=50
 
 ##User variables
 EMAIL_FROM="ShareM Robot <author.tab@gmail.com>"
 EMAIL_TO="sundaram.green4@gmail.com"
 EMAIL_SUB="Market rates - $(TZ=${TIME_ZONE} date +"%Y-%m-%d %T")"
+EMAIL_ERR_SUB="FetchRate script failure - $(TZ=${TIME_ZONE} date +"%Y-%m-%d %T")"
+SEND_EMAIL_ON_FAILURE="true"
+MARGIN_PRICE="500" ##value of change in price should notified (latest mode)
 
 function log_msg() {
  echo -e "$(TZ=${TIME_ZONE} date +"%Y-%m-%d %T") >> $@" >> $LOG
@@ -31,12 +37,14 @@ function log_msg() {
 function mk_dirs() {
 	#[ ! -d $TEMP ] && mkdir -p $TEMP
 	[ ! -d "$TEMP/logs" ] && mkdir -p $TEMP/logs
+	[ ! -s "$COUNTER_FILE" ] && echo "0" > $COUNTER_FILE
 }
 
 function send_email() {
 	local FUNC=send_email
 	local RET=$FAILED_STATE
-	local MAIL_DATA=$1
+	local EMAIL_SUB="$1"
+	local MAIL_DATA=$2
 	
 	mailx --subject="${EMAIL_SUB}" -a "From: ${EMAIL_FROM}" -t ${EMAIL_TO} < $MAIL_DATA
 	if [ $? -eq $OK_STATE ]; then
@@ -49,6 +57,15 @@ function send_email() {
 return $RET
 }
 
+function error_notify() {
+local FUNC=error_notify
+local MAIL_DATA="$TEMP/OUT_error.msg"
+tail -12 $LOG > $MAIL_DATA
+send_email "${EMAIL_ERR_SUB}" $MAIL_DATA
+RET=$?
+
+return $RET
+}
 function build_URL() {
 ##should return only URL as output##
 local FUNC=build_URL
@@ -76,12 +93,20 @@ function api_call() {
 	local FUNC=api_call
 	local RET=$FAILED_STATE
 	local URL=$1
+	local COUNTER_VALUE=$2
+	local KEY_COUNT=$3
 	local OUT_FILE="$TEMP/OUT_${MODE}.txt"
 	curl --location --request GET --output $OUT_FILE --create-dirs "${URL}"
 	if [ $? -eq $OK_STATE ]; then
 		RES=$($JQ_CMD '.success' $OUT_FILE)
 		if [ $RES == "true" ]; then
 			RET=$OK_STATE
+			if [ $COUNTER_VALUE	-lt $(echo "($KEY_CNT * $COUNTER_MAX)-1"|bc -l) ]; then
+				echo "$COUNTER_VALUE + 1" |bc -l > $COUNTER_FILE
+			else
+				echo "0" > $COUNTER_FILE
+				log_msg "$FUNC" "Max API request reached for $KEY_CNT keys, so reset counter to Zero"
+			fi
 			log_msg "$FUNC" "api request succeeded"
 		else
 			log_msg "$FUNC" "api response data shows failure"
@@ -139,10 +164,10 @@ function notify_logic_latest() {
 	local DIFF_PRICE=$2
 	local ALERT_FILE="$TEMP/.latest_alert_true"
 	case $SYM in 
-		XAU) if (( $(echo "$DIFF_PRICE >= 1000"|bc -l) )) ; then
+		XAU) if (( $(echo "$DIFF_PRICE >= $MARGIN_PRICE"|bc -l) )) ; then
 				touch $ALERT_FILE
 				RET=$OK_STATE
-			elif (( $(echo "$DIFF_PRICE <= -1000"|bc -l) )); then
+			elif (( $(echo "$DIFF_PRICE <= -${MARGIN_PRICE}"|bc -l) )); then
 				touch $ALERT_FILE
 				RET=$OK_STATE
 			else
@@ -199,7 +224,7 @@ function post-op() {
 			if [ $? -eq $OK_STATE ] && [ -s "$OUT_TMP" ]; then
 				##check and send email
 				if [ -f $ALERT_FILE ]; then
-					send_email $OUT_TMP
+					send_email "${EMAIL_SUB}" $OUT_TMP
 					RET=$?
 				else
 					log_msg "$FUNC" "not sending alert"
@@ -216,28 +241,49 @@ return $RET
 }
 
 function do-op() {
- local FUNC=do-op
- local RET=$FAILED_STATE
- local MODE=$1
- local BASE=$2
- local ACCESS_KEY="sfpvqh5gf9lnroohni4pnjef1zhk8h9pk93o6acy99kzwd7b9jq3e6q8g72m"
- local SYMBOL=$3
- 
- ##Build URL
- RES=$(build_URL $MODE $BASE $SYMBOL $ACCESS_KEY)
- if [ $? -eq $OK_STATE ]; then
-	URL=$RES
-	##Query API endpoint
-	api_call $URL
-	if [ $? -eq $OK_STATE ]; then
-		parse_data $MODE
-		RET=$?
-	else
-		log_msg "$FUNC" "failed at step api_call"
-	fi
- else
-	log_msg "$FUNC" "failed at step build_URL"
- fi
+local FUNC=do-op
+local RET=$FAILED_STATE
+local MODE=$1
+local BASE=$2
+local ACCESS_KEY=""
+local SYMBOL=$3
+
+##Retrive access_key
+local KEY_CNT=$(wc -l $KEY_FILE|awk '{print $1}')
+local J=1
+local COUNTER_VALUE=$(cat $COUNTER_FILE)
+while [ $J -le $KEY_CNT ];
+do
+if [ $COUNTER_VALUE -lt $(echo "$COUNTER_MAX * $J" |bc -l) ]; then
+	ACCESS_KEY=$(sed -n ${J}p $KEY_FILE)
+	RET=$OK_STATE
+	break
+else
+	log_msg "$FUNC" "API request count=${COUNTER_VALUE}, Not using key $J"
+fi
+J=$(echo "$J + 1"|bc -l)
+done
+
+if [ $RET -eq $OK_STATE ]; then
+	 local RET=$FAILED_STATE
+	 ##Build URL
+	 RES=$(build_URL $MODE $BASE $SYMBOL $ACCESS_KEY)
+	 if [ $? -eq $OK_STATE ]; then
+		URL=$RES
+		##Query API endpoint
+		api_call $URL $COUNTER_VALUE $KEY_CNT
+		if [ $? -eq $OK_STATE ]; then
+			parse_data $MODE
+			RET=$?
+		else
+			log_msg "$FUNC" "failed at step api_call"
+		fi
+	 else
+		log_msg "$FUNC" "failed at step build_URL"
+	 fi
+else
+	log_msg "$FUNC" "failed to fetch access_key"
+fi
  
 return $RET
 }
@@ -249,17 +295,21 @@ function pre-op() {
  local BASE=$2
  local SYMBOL=$3
  
- ##check mode
- case $MODE in
-	latest) if [ -f "$(which bc)" ] && [ -f "$(which curl)" ] && [ -f "$(which mailx)" ] && [ -f "$JQ_CMD" ]; then
-				RET=$OK_STATE
-			else
-				log_msg "$FUNC" "missing commands 'bc' 'curl' 'mailx' 'jq'"
-			fi
-			;;
-	*) 	log_msg "$FUNC" "Invalid mode selected"
-			;;
- esac
+ if [ -s $KEY_FILE ]; then
+	 ##mode dependant checks
+	 case $MODE in
+		latest) if [ -f "$(which bc)" ] && [ -f "$(which curl)" ] && [ -f "$(which mailx)" ] && [ -f "$JQ_CMD" ]; then
+					RET=$OK_STATE
+				else
+					log_msg "$FUNC" "missing commands 'bc' 'curl' 'mailx' 'jq'"
+				fi
+				;;
+		*) 	log_msg "$FUNC" "Invalid mode selected"
+				;;
+	 esac
+else
+	log_msg "$FUNC" "Access_key's not found at $KEY_FILE"
+fi	
 
 return $RET
 }
@@ -309,9 +359,11 @@ function main() {
 					log_msg "$FUNC" "post-op succeeded"
 				else
 					log_msg "$FUNC" "failed in post-op"
+					[ $SEND_EMAIL_ON_FAILURE == "true" ] && error_notify
 				fi
 			else
 				log_msg "$FUNC" "failed in do-op : $RES"
+				[ $SEND_EMAIL_ON_FAILURE == "true" ] && error_notify
 			fi
 		else
 			log_msg "$FUNC" "failed in pre-op"
