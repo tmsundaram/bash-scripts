@@ -260,6 +260,7 @@ if [ $COUNTER_VALUE -lt $(echo "$COUNTER_MAX * $J" |bc -l) ]; then
 else
 	log_msg "$FUNC" "API request count=${COUNTER_VALUE}, Not using key $J"
 fi
+J=$(echo "$J + 1"|bc -l)
 done
 
 if [ $RET -eq $OK_STATE ]; then
