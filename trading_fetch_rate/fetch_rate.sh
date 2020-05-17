@@ -28,6 +28,7 @@ EMAIL_TO="sundaram.green4@gmail.com"
 EMAIL_SUB="Market rates - $(TZ=${TIME_ZONE} date +"%Y-%m-%d %T")"
 EMAIL_ERR_SUB="FetchRate script failure - $(TZ=${TIME_ZONE} date +"%Y-%m-%d %T")"
 SEND_EMAIL_ON_FAILURE="true"
+MARGIN_PRICE="500" ##value of change in price should notified (latest mode)
 
 function log_msg() {
  echo -e "$(TZ=${TIME_ZONE} date +"%Y-%m-%d %T") >> $@" >> $LOG
@@ -163,10 +164,10 @@ function notify_logic_latest() {
 	local DIFF_PRICE=$2
 	local ALERT_FILE="$TEMP/.latest_alert_true"
 	case $SYM in 
-		XAU) if (( $(echo "$DIFF_PRICE >= 1000"|bc -l) )) ; then
+		XAU) if (( $(echo "$DIFF_PRICE >= $MARGIN_PRICE"|bc -l) )) ; then
 				touch $ALERT_FILE
 				RET=$OK_STATE
-			elif (( $(echo "$DIFF_PRICE <= -1000"|bc -l) )); then
+			elif (( $(echo "$DIFF_PRICE <= -${MARGIN_PRICE}"|bc -l) )); then
 				touch $ALERT_FILE
 				RET=$OK_STATE
 			else
