@@ -100,7 +100,7 @@ function api_call() {
 		RES=$($JQ_CMD '.success' $OUT_FILE)
 		if [ $RES == "true" ]; then
 			RET=$OK_STATE
-			if [ $COUNTER_VALUE	-lt $(echo ($KEY_CNT * $COUNTER_MAX)-1|bc -l) ]; then
+			if [ $COUNTER_VALUE	-lt $(echo "($KEY_CNT * $COUNTER_MAX)-1"|bc -l) ]; then
 				echo "$COUNTER_VALUE + 1" |bc -l > $COUNTER_FILE
 			else
 				echo "0" > $COUNTER_FILE
