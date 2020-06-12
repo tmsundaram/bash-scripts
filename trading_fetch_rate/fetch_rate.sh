@@ -147,7 +147,7 @@ function counter_action() {
 						log_msg "$FUNC" "(action:rotate) - reached last key, so move to first key"
 						CURRENT_KEY="0"
 					fi
-					COUNTER_VALUE=$(echo "$CURRENT_KEY * $MAX_COUNTER"|bc -l)
+					COUNTER_VALUE=$(echo "$CURRENT_KEY * $COUNTER_MAX"|bc -l)
 					echo $COUNTER_VALUE > $COUNTER_FILE
 					RET=$CURRENT_KEY
 				#done
