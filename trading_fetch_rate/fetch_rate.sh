@@ -291,7 +291,7 @@ function do-op() {
 	##Retrive access_key and fetch data
 	local KEY_CNT=$(wc -l $KEY_FILE|awk '{print $1}')
 	local J=1
-	local ROTATE_BAL=$KEY_CNT
+	local ROTATE_BAL=$(echo "$KEY_CNT - 1" |bc -l)
 	while [ $J -le $KEY_CNT ];
 	do
 		local COUNTER_VALUE=$(cat $COUNTER_FILE)
