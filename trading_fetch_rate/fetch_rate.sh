@@ -2,8 +2,8 @@
 #################################################################
 ##Purpose: Fetch market price of given material and sent alert ##
 ##Author : TM Sundaram                                         ##
-##Date   : 2020-05-09                                          ##
-##Version: 1.0.2                                               ##
+##Date   : 2020-06-12                                          ##
+##Version: 1.0.3                                               ##
 ##Test   : Tested on Ubuntu 18.04                              ##
 #################################################################
 
@@ -98,23 +98,63 @@ function api_call() {
 	local OUT_FILE="$TEMP/OUT_${MODE}.txt"
 	curl --location --request GET --output $OUT_FILE --create-dirs "${URL}"
 	if [ $? -eq $OK_STATE ]; then
-		RES=$($JQ_CMD '.success' $OUT_FILE)
-		if [ $RES == "true" ]; then
-			RET=$OK_STATE
-			if [ $COUNTER_VALUE	-lt $(echo "($KEY_CNT * $COUNTER_MAX)-1"|bc -l) ]; then
-				echo "$COUNTER_VALUE + 1" |bc -l > $COUNTER_FILE
-			else
-				echo "0" > $COUNTER_FILE
-				log_msg "$FUNC" "Max API request reached for $KEY_CNT keys, so reset counter to Zero"
-			fi
-			log_msg "$FUNC" "api request succeeded"
-		else
-			log_msg "$FUNC" "api response data shows failure"
-		fi
+		log_msg "$FUNC" "api request been sent"
 	else
 		log_msg "$FUNC" "error sending api request"
+		RET=$OK_STATE
 	fi
-		
+
+return $RET
+}
+
+function validate_api_data() {
+	local FUNC=validate_api_data
+	local RET=$FAILED_STATE
+	local OUT_FILE="$TEMP/OUT_${MODE}.txt"
+	RES=$($JQ_CMD '.success' $OUT_FILE)
+	if [ $RES == "true" ]; then
+		RET=$OK_STATE
+	elif [ $RES == "false" ]; then
+		RET=$($JQ_CMD '.error.code' $OUT_FILE)
+		RES=$($JQ_CMD '"ErrCode:" + (.error.code|tostring) + " - " + .error.type + " - " + .error.info'  $OUT_FILE)
+		log_msg "$FUNC" "API error details: $RES"
+	else
+		RET=$FAILED_STATE
+		log_msg "$FUNC" "Unknown error with API response"
+	fi
+return $RET
+}
+
+function counter_action() {
+	local FUNC=counter_action
+	local RET=$FAILED_STATE
+	local KEY_CNT=$(wc -l $KEY_FILE|awk '{print $1}')
+	local COUNTER_VALUE=$(cat $COUNTER_FILE)
+	local CURRENT_KEY=$3
+	case $1 in 
+		stepup) if [ $COUNTER_VALUE	-lt $(echo "($KEY_CNT * $COUNTER_MAX)-1"|bc -l) ]; then
+					echo "$COUNTER_VALUE + 1" |bc -l > $COUNTER_FILE
+				else
+					echo "0" > $COUNTER_FILE
+					log_msg "$FUNC" "(action:stepup) Max API request reached for $KEY_CNT keys, so reset counter to Zero"
+				fi
+				RET=$OK_STATE
+				;;
+		rotate) 
+				#while [ $CURRENT_KEY -le $KEY_CNT ]
+				#do
+					if [ $CURRENT_KEY -eq $KEY_CNT ]; then
+						log_msg "$FUNC" "(action:rotate) - reached last key, so move to first key"
+						$CURRENT_KEY=0
+					fi
+					COUNTER_VALUE=$(echo "$CURRENT_KEY * $MAX_COUNTER"|bc -l)
+					echo $COUNTER_VALUE > $COUNTER_FILE
+					RET=$CURRENT_KEY
+				#done
+				;;
+			*) log_msg "$FUNC" "Invalid input for counter_action"
+				;;
+	esac
 return $RET
 }
 
@@ -241,50 +281,62 @@ return $RET
 }
 
 function do-op() {
-local FUNC=do-op
-local RET=$FAILED_STATE
-local MODE=$1
-local BASE=$2
-local ACCESS_KEY=""
-local SYMBOL=$3
+	local FUNC=do-op
+	local RET=$FAILED_STATE
+	local MODE=$1
+	local BASE=$2
+	local ACCESS_KEY=""
+	local SYMBOL=$3
 
-##Retrive access_key
-local KEY_CNT=$(wc -l $KEY_FILE|awk '{print $1}')
-local J=1
-local COUNTER_VALUE=$(cat $COUNTER_FILE)
-while [ $J -le $KEY_CNT ];
-do
-if [ $COUNTER_VALUE -lt $(echo "$COUNTER_MAX * $J" |bc -l) ]; then
-	ACCESS_KEY=$(sed -n ${J}p $KEY_FILE)
-	RET=$OK_STATE
-	break
-else
-	log_msg "$FUNC" "API request count=${COUNTER_VALUE}, Not using key $J"
-fi
-J=$(echo "$J + 1"|bc -l)
-done
-
-if [ $RET -eq $OK_STATE ]; then
-	 local RET=$FAILED_STATE
-	 ##Build URL
-	 RES=$(build_URL $MODE $BASE $SYMBOL $ACCESS_KEY)
-	 if [ $? -eq $OK_STATE ]; then
-		URL=$RES
-		##Query API endpoint
-		api_call $URL $COUNTER_VALUE $KEY_CNT
-		if [ $? -eq $OK_STATE ]; then
-			parse_data $MODE
-			RET=$?
+	##Retrive access_key and fetch data
+	local KEY_CNT=$(wc -l $KEY_FILE|awk '{print $1}')
+	local J=1
+	while [ $J -le $KEY_CNT ];
+	do
+		local COUNTER_VALUE=$(cat $COUNTER_FILE)
+		if [ $COUNTER_VALUE -lt $(echo "$COUNTER_MAX * $J" |bc -l) ]; then
+			ACCESS_KEY=$(sed -n ${J}p $KEY_FILE)
+			if [ $? -eq $OK_STATE ]; then
+				##Build URL
+				RES=$(build_URL $MODE $BASE $SYMBOL $ACCESS_KEY)
+				if [ $? -eq $OK_STATE ]; then
+					URL=$RES
+					##Query API endpoint
+					api_call $URL $COUNTER_VALUE
+					if [ $? -eq $OK_STATE ]; then
+						validate_api_data
+						case $? in
+						0) 	counter_action stepup 
+							parse_data $MODE
+							RET=$?
+							break
+							;;
+						104) counter_action rotate $J
+							 J=$?
+							 ROTATE_BAL=$(echo "$KEY_CNT - 1" | bc -l)
+							 if [ $ROTATE_BAL -eq "0" ]; then
+								log_msg "$FUNC" "(action:rotate) all keys reacehd request limit, no more keys to try"
+								J=$KEY_CNT
+							 fi
+							 ;;
+						 *) log_msg "$FUNC" "failed at step validate_api_data"
+							;;
+						esac
+					else
+						log_msg "$FUNC" "failed at step api_call for key:$J"
+					fi
+				else
+					log_msg "$FUNC" "failed at step build_URL"
+					break
+				fi
+			else
+				log_msg "$FUNC" "failed to fetch access_key"
+			fi
 		else
-			log_msg "$FUNC" "failed at step api_call"
+			log_msg "$FUNC" "API request count=${COUNTER_VALUE}, Not using key $J"
 		fi
-	 else
-		log_msg "$FUNC" "failed at step build_URL"
-	 fi
-else
-	log_msg "$FUNC" "failed to fetch access_key"
-fi
- 
+	J=$(echo "$J + 1"|bc -l)
+	done
 return $RET
 }
 
