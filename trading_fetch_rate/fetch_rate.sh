@@ -130,7 +130,7 @@ function counter_action() {
 	local RET=$FAILED_STATE
 	local KEY_CNT=$(wc -l $KEY_FILE|awk '{print $1}')
 	local COUNTER_VALUE=$(cat $COUNTER_FILE)
-	local CURRENT_KEY=$3
+	local CURRENT_KEY=$2
 	case $1 in 
 		stepup) if [ $COUNTER_VALUE	-lt $(echo "($KEY_CNT * $COUNTER_MAX)-1"|bc -l) ]; then
 					echo "$COUNTER_VALUE + 1" |bc -l > $COUNTER_FILE
