@@ -99,9 +99,9 @@ function api_call() {
 	curl --location --request GET --output $OUT_FILE --create-dirs "${URL}"
 	if [ $? -eq $OK_STATE ]; then
 		log_msg "$FUNC" "api request been sent"
+		RET=$OK_STATE
 	else
 		log_msg "$FUNC" "error sending api request"
-		RET=$OK_STATE
 	fi
 
 return $RET
@@ -414,7 +414,7 @@ function main() {
 					[ $SEND_EMAIL_ON_FAILURE == "true" ] && error_notify
 				fi
 			else
-				log_msg "$FUNC" "failed in do-op : $RES"
+				log_msg "$FUNC" "failed in do-op"
 				[ $SEND_EMAIL_ON_FAILURE == "true" ] && error_notify
 			fi
 		else
