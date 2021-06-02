@@ -2,9 +2,9 @@
 #################################################################
 ##Purpose: Fetch market price of given material and sent alert ##
 ##Author : TM Sundaram                                         ##
-##Date   : 2020-06-12                                          ##
-##Version: 1.0.3                                               ##
-##Test   : Tested on Ubuntu 18.04                              ##
+##Date   : 2021-06-02                                          ##
+##Version: 1.0.4                                               ##
+##Test   : Tested on Debian 10                                 ##
 #################################################################
 
 ##Global variables
@@ -46,7 +46,9 @@ function send_email() {
 	local EMAIL_SUB="$1"
 	local MAIL_DATA=$2
 	
-	mailx --subject="${EMAIL_SUB}" -a "From: ${EMAIL_FROM}" -t ${EMAIL_TO} < $MAIL_DATA
+	#mailx -s "${EMAIL_SUB}" -a "From: ${EMAIL_FROM}" ${EMAIL_TO} < $MAIL_DATA
+	#Updated argumentsas per latest version of mailx
+	mailx -s "${EMAIL_SUB}" -r "${EMAIL_FROM}" -- ${EMAIL_TO} < $MAIL_DATA
 	if [ $? -eq $OK_STATE ]; then
 		log_msg "$FUNC" "email has been sent"
 		RET=$OK_STATE
@@ -58,25 +60,25 @@ return $RET
 }
 
 function error_notify() {
-local FUNC=error_notify
-local MAIL_DATA="$TEMP/OUT_error.msg"
-tail -12 $LOG > $MAIL_DATA
-send_email "${EMAIL_ERR_SUB}" $MAIL_DATA
-RET=$?
+	local FUNC=error_notify
+	local MAIL_DATA="$TEMP/OUT_error.msg"
+	tail -12 $LOG > $MAIL_DATA
+	send_email "${EMAIL_ERR_SUB}" $MAIL_DATA
+	RET=$?
 
 return $RET
 }
 function build_URL() {
 ##should return only URL as output##
-local FUNC=build_URL
-local RET=$FAILED_STATE
-local MODE=$1
-local BASE=$2
-local SYMBOL=$3
-local ACCESS_KEY=$4
+	local FUNC=build_URL
+	local RET=$FAILED_STATE
+	local MODE=$1
+	local BASE=$2
+	local SYMBOL=$3
+	local ACCESS_KEY=$4
 
-case $MODE in
-	latest) if [ ! -z $SYMBOL ]; then
+	case $MODE in
+		latest) if [ ! -z $SYMBOL ]; then
 				echo "https://metals-api.com/api/latest?base=$BASE&symbols=$SYMBOL&access_key=$ACCESS_KEY"
 			else
 				echo "https://metals-api.com/api/latest?base=$BASE&access_key=$ACCESS_KEY"
@@ -84,7 +86,7 @@ case $MODE in
 			RET=$OK_STATE
 			;;
 		*) RET=$FAILED_STATE ;;
-esac
+	esac
 
 return $RET
 }
