@@ -2,9 +2,9 @@
 #################################################################
 ##Purpose: Fetch market price of given material and sent alert ##
 ##Author : TM Sundaram                                         ##
-##Date   : 2020-06-12                                          ##
-##Version: 1.0.3                                               ##
-##Test   : Tested on Ubuntu 18.04                              ##
+##Date   : 2021-06-02                                          ##
+##Version: 1.0.4                                               ##
+##Test   : Tested on Debian 10                                 ##
 #################################################################
 
 ##Global variables
