@@ -24,7 +24,8 @@ COUNTER_FILE="$DDIR/tmp/.counter"
 COUNTER_MAX=50
 
 ##User variables
-EMAIL_FROM="ShareM Robot <email.from@domain.com>"
+EMAIL_FROM_NAME="ShareM Robot"
+EMAIL_FROM_ID="email.from@domain.com"
 EMAIL_TO="email.to@domain.com"
 EMAIL_SUB="Market rates - $(TZ=${TIME_ZONE} date +"%Y-%m-%d %T")"
 EMAIL_ERR_SUB="FetchRate script failure - $(TZ=${TIME_ZONE} date +"%Y-%m-%d %T")"
@@ -49,7 +50,7 @@ function send_email() {
 	
 	#mailx -s "${EMAIL_SUB}" -a "From: ${EMAIL_FROM}" ${EMAIL_TO} < $MAIL_DATA
 	#Updated argumentsas per latest version of mailx
-	mailx -s "${EMAIL_SUB}" -r "${EMAIL_FROM}" -- ${EMAIL_TO} < $MAIL_DATA
+	mailx -s "${EMAIL_SUB}" -r "${EMAIL_FROM_ID}" -a "From: ${EMAIL_FROM_NAME} <${EMAIL_FROM_ID}>" -- ${EMAIL_TO} < $MAIL_DATA
 	if [ $? -eq $OK_STATE ]; then
 		log_msg "$FUNC" "email has been sent"
 		RET=$OK_STATE
