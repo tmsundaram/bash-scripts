@@ -1,11 +1,12 @@
 #!/bin/bash
-#################################################################
-##Purpose: Fetch market price of given material and sent alert ##
-##Author : TM Sundaram                                         ##
-##Date   : 2023-04-01                                          ##
-##Version: 1.0.5                                               ##
-##Test   : Tested on Debian 11                                 ##
-#################################################################
+###################################################################################################
+##Purpose: Fetch market price of given material and sent alert                                   ##
+##Author : TM Sundaram                                                                           ##
+##Date   : 2023-04-01                                                                            ##
+##Version: 1.0.5                                                                                 ##
+##Test   : Tested on Debian 11                                                                   ##
+##Wiki   : https://github.com/tmsundaram/bash-scripts/wiki/How-to-use-fetch-rate-script%3F       ##
+###################################################################################################
 
 ##Global variables
 OK_STATE=0
