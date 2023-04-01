@@ -2,9 +2,9 @@
 #################################################################
 ##Purpose: Fetch market price of given material and sent alert ##
 ##Author : TM Sundaram                                         ##
-##Date   : 2021-06-02                                          ##
-##Version: 1.0.4                                               ##
-##Test   : Tested on Debian 10                                 ##
+##Date   : 2023-04-01                                          ##
+##Version: 1.0.5                                               ##
+##Test   : Tested on Debian 11                                 ##
 #################################################################
 
 ##Global variables
@@ -23,8 +23,8 @@ COUNTER_FILE="$DDIR/tmp/.counter"
 COUNTER_MAX=50
 
 ##User variables
-EMAIL_FROM="ShareM Robot <author.tab@gmail.com>"
-EMAIL_TO="sundaram.green4@gmail.com"
+EMAIL_FROM="ShareM Robot <email.from@domain.com>"
+EMAIL_TO="email.to@domain.com"
 EMAIL_SUB="Market rates - $(TZ=${TIME_ZONE} date +"%Y-%m-%d %T")"
 EMAIL_ERR_SUB="FetchRate script failure - $(TZ=${TIME_ZONE} date +"%Y-%m-%d %T")"
 SEND_EMAIL_ON_FAILURE="true"
